@@ -16,6 +16,101 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp, type CartItem, type Product } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 
+function QRPaymentModal({
+  visible,
+  total,
+  onClose,
+  onConfirm,
+}: {
+  visible: boolean;
+  total: number;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const { bankConfig } = useApp();
+  const addInfo = encodeURIComponent("MangDi");
+  const accountName = encodeURIComponent(bankConfig.accountName);
+  const qrUrl = `https://img.vietqr.io/image/${bankConfig.bankId}-${bankConfig.accountNo}-compact.png?amount=${total}&addInfo=${addInfo}&accountName=${accountName}`;
+  const webBottom = Platform.OS === "web" ? 34 : insets.bottom;
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={[qrStyles.container, { backgroundColor: colors.background, paddingTop: Platform.OS === "web" ? 67 : 0 }]}>
+        <View style={[qrStyles.header, { borderBottomColor: colors.border }]}>
+          <View>
+            <Text style={[qrStyles.title, { color: colors.foreground }]}>Chuyển khoản QR</Text>
+            <Text style={[qrStyles.subtitle, { color: colors.mutedForeground }]}>Mang đi · Take away</Text>
+          </View>
+          <TouchableOpacity onPress={onClose}>
+            <Feather name="x" size={24} color={colors.foreground} />
+          </TouchableOpacity>
+        </View>
+        <ScrollView contentContainerStyle={{ padding: 20, gap: 16, alignItems: "center", paddingBottom: webBottom + 20 }}>
+          <View style={[qrStyles.bankCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={qrStyles.bankRow}>
+              <Text style={[qrStyles.bankLabel, { color: colors.mutedForeground }]}>Ngân hàng</Text>
+              <Text style={[qrStyles.bankValue, { color: colors.foreground }]}>{bankConfig.bankId}</Text>
+            </View>
+            <View style={[qrStyles.divider, { backgroundColor: colors.border }]} />
+            <View style={qrStyles.bankRow}>
+              <Text style={[qrStyles.bankLabel, { color: colors.mutedForeground }]}>Số tài khoản</Text>
+              <Text style={[qrStyles.bankValue, { color: colors.foreground }]}>{bankConfig.accountNo}</Text>
+            </View>
+            <View style={[qrStyles.divider, { backgroundColor: colors.border }]} />
+            <View style={qrStyles.bankRow}>
+              <Text style={[qrStyles.bankLabel, { color: colors.mutedForeground }]}>Chủ tài khoản</Text>
+              <Text style={[qrStyles.bankValue, { color: colors.foreground }]}>{bankConfig.accountName}</Text>
+            </View>
+            <View style={[qrStyles.divider, { backgroundColor: colors.border }]} />
+            <View style={qrStyles.bankRow}>
+              <Text style={[qrStyles.bankLabel, { color: colors.mutedForeground }]}>Số tiền</Text>
+              <Text style={[qrStyles.amountValue, { color: colors.primary }]}>{fmt(total)}</Text>
+            </View>
+          </View>
+
+          <View style={[qrStyles.qrFrame, { borderColor: colors.border, backgroundColor: colors.card }]}>
+            <Image source={{ uri: qrUrl }} style={qrStyles.qrImage} resizeMode="contain" />
+          </View>
+          <Text style={[qrStyles.note, { color: colors.mutedForeground }]}>
+            Mở ứng dụng ngân hàng và quét mã QR để thanh toán
+          </Text>
+
+          <TouchableOpacity
+            onPress={() => {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              onConfirm();
+            }}
+            style={[qrStyles.confirmBtn, { backgroundColor: colors.success }]}
+          >
+            <Feather name="check-circle" size={20} color="#fff" />
+            <Text style={qrStyles.confirmBtnText}>Đã nhận tiền</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
+const qrStyles = StyleSheet.create({
+  container: { flex: 1 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1 },
+  title: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  subtitle: { fontSize: 12, fontFamily: "Inter_500Medium", marginTop: 2 },
+  bankCard: { width: "100%", padding: 16, borderRadius: 14, borderWidth: 1, gap: 10 },
+  bankRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  bankLabel: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  bankValue: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  amountValue: { fontSize: 22, fontFamily: "Inter_700Bold" },
+  divider: { height: 1 },
+  qrFrame: { padding: 16, borderRadius: 16, borderWidth: 1 },
+  qrImage: { width: 220, height: 220 },
+  note: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", paddingHorizontal: 20 },
+  confirmBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 16, paddingHorizontal: 40, borderRadius: 14, gap: 8 },
+  confirmBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
+});
+
 const CATEGORIES = ["Tất cả", "Cà phê", "Trà & Sinh tố", "Đồ ăn"];
 
 function fmt(price: number): string {
@@ -62,8 +157,17 @@ function CartModal({ visible, onClose }: { visible: boolean; onClose: () => void
   const insets = useSafeAreaInsets();
   const { cart, cartTotal, cartItemCount, updateCartQuantity, removeFromCart, checkout, clearCart } = useApp();
   const [confirmed, setConfirmed] = useState(false);
+  const [qrVisible, setQrVisible] = useState(false);
 
-  function handleCheckout() {
+  function handleCashCheckout() {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    checkout();
+    setConfirmed(true);
+    setTimeout(() => { setConfirmed(false); onClose(); }, 1500);
+  }
+
+  function handleQRConfirm() {
+    setQrVisible(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     checkout();
     setConfirmed(true);
@@ -129,16 +233,29 @@ function CartModal({ visible, onClose }: { visible: boolean; onClose: () => void
                     <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Tổng cộng</Text>
                     <Text style={[styles.totalAmount, { color: colors.primary }]}>{fmt(cartTotal)}</Text>
                   </View>
-                  <TouchableOpacity onPress={handleCheckout} style={[styles.checkoutBtn, { backgroundColor: colors.primary }]}>
-                    <Feather name="check-circle" size={20} color="#fff" />
-                    <Text style={styles.checkoutBtnText}>Thanh toán</Text>
-                  </TouchableOpacity>
+                  <View style={styles.paymentRow}>
+                    <TouchableOpacity onPress={handleCashCheckout} style={[styles.payBtn, { backgroundColor: colors.primary }]}>
+                      <Feather name="dollar-sign" size={18} color="#fff" />
+                      <Text style={styles.payBtnText}>Tiền mặt</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setQrVisible(true)} style={[styles.payBtn, { backgroundColor: colors.accent }]}>
+                      <Ionicons name="qr-code-outline" size={18} color="#fff" />
+                      <Text style={styles.payBtnText}>Chuyển khoản</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </>
             )}
           </>
         )}
       </View>
+
+      <QRPaymentModal
+        visible={qrVisible}
+        total={cartTotal}
+        onClose={() => setQrVisible(false)}
+        onConfirm={handleQRConfirm}
+      />
     </Modal>
   );
 }
@@ -265,6 +382,9 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: 16, fontFamily: "Inter_500Medium" },
   totalAmount: { fontSize: 22, fontFamily: "Inter_700Bold" },
   checkoutBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 16, borderRadius: 14, gap: 8 },
+  paymentRow: { flexDirection: "row", gap: 10 },
+  payBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 15, borderRadius: 14, gap: 8 },
+  payBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold" },
   checkoutBtnText: { color: "#fff", fontSize: 17, fontFamily: "Inter_700Bold" },
   successView: { flex: 1, alignItems: "center", justifyContent: "center", gap: 20 },
   successCircle: { width: 100, height: 100, borderRadius: 50, alignItems: "center", justifyContent: "center" },
