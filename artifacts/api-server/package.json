@@ -36,5 +36,6 @@
   },
   "engines": {
   "node": "20.x"
-}
+},
+"build": "node ./build.mjs --verbose"
 }
