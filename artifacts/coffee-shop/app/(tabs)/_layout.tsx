@@ -15,6 +15,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "cart", selected: "cart.fill" }} />
         <Label>Bán hàng</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="tables">
+        <Icon sf={{ default: "tablecells", selected: "tablecells.fill" }} />
+        <Label>Bàn</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="orders">
         <Icon sf={{ default: "receipt", selected: "receipt.fill" }} />
         <Label>Đơn hàng</Label>
@@ -54,18 +58,9 @@ function ClassicTabLayout() {
         },
         tabBarBackground: () =>
           isIOS ? (
-            <BlurView
-              intensity={100}
-              tint={isDark ? "dark" : "light"}
-              style={StyleSheet.absoluteFill}
-            />
+            <BlurView intensity={100} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
           ) : isWeb ? (
-            <View
-              style={[
-                StyleSheet.absoluteFill,
-                { backgroundColor: colors.card },
-              ]}
-            />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.card }]} />
           ) : null,
         tabBarLabelStyle: {
           fontSize: 10,
@@ -79,11 +74,15 @@ function ClassicTabLayout() {
         options={{
           title: "Bán hàng",
           tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="cart" tintColor={color} size={24} />
-            ) : (
-              <Ionicons name="cart-outline" size={22} color={color} />
-            ),
+            isIOS ? <SymbolView name="cart" tintColor={color} size={22} /> : <Ionicons name="cart-outline" size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="tables"
+        options={{
+          title: "Bàn",
+          tabBarIcon: ({ color }) =>
+            isIOS ? <SymbolView name="tablecells" tintColor={color} size={22} /> : <Ionicons name="grid-outline" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -91,11 +90,7 @@ function ClassicTabLayout() {
         options={{
           title: "Đơn hàng",
           tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="receipt" tintColor={color} size={24} />
-            ) : (
-              <Ionicons name="receipt-outline" size={22} color={color} />
-            ),
+            isIOS ? <SymbolView name="receipt" tintColor={color} size={22} /> : <Ionicons name="receipt-outline" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -103,11 +98,7 @@ function ClassicTabLayout() {
         options={{
           title: "Kho hàng",
           tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="archivebox" tintColor={color} size={24} />
-            ) : (
-              <Feather name="archive" size={22} color={color} />
-            ),
+            isIOS ? <SymbolView name="archivebox" tintColor={color} size={22} /> : <Feather name="archive" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -115,11 +106,7 @@ function ClassicTabLayout() {
         options={{
           title: "Thực đơn",
           tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="fork.knife" tintColor={color} size={24} />
-            ) : (
-              <Ionicons name="restaurant-outline" size={22} color={color} />
-            ),
+            isIOS ? <SymbolView name="fork.knife" tintColor={color} size={22} /> : <Ionicons name="restaurant-outline" size={22} color={color} />,
         }}
       />
     </Tabs>
@@ -127,8 +114,6 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
+  if (isLiquidGlassAvailable()) return <NativeTabLayout />;
   return <ClassicTabLayout />;
 }

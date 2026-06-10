@@ -7,6 +7,7 @@ export interface Product {
   price: number;
   category: string;
   available: boolean;
+  imageUri?: string;
 }
 
 export interface Ingredient {
@@ -34,7 +35,38 @@ export interface Order {
   items: OrderItem[];
   total: number;
   createdAt: string;
+  tableId?: string;
 }
+
+export type TableStatus = "empty" | "open" | "billed";
+
+export interface Table {
+  id: string;
+  name: string;
+  status: TableStatus;
+  items: CartItem[];
+  savedAt?: string;
+}
+
+export interface BankConfig {
+  bankId: string;
+  accountNo: string;
+  accountName: string;
+}
+
+const DEFAULT_BANK: BankConfig = {
+  bankId: "MB",
+  accountNo: "0123456789",
+  accountName: "QUAN CA PHE",
+};
+
+const INITIAL_TABLES: Table[] = [
+  { id: "t1", name: "Bàn 1", status: "empty", items: [] },
+  { id: "t2", name: "Bàn 2", status: "empty", items: [] },
+  { id: "t3", name: "Bàn 3", status: "empty", items: [] },
+  { id: "t4", name: "Bàn 4", status: "empty", items: [] },
+  { id: "t5", name: "Bàn 5", status: "empty", items: [] },
+];
 
 interface AppContextType {
   products: Product[];
@@ -43,19 +75,33 @@ interface AppContextType {
   cart: CartItem[];
   cartTotal: number;
   cartItemCount: number;
+  tables: Table[];
+  bankConfig: BankConfig;
+
   addToCart: (product: Product) => void;
   removeFromCart: (productId: string) => void;
   updateCartQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
   checkout: () => string;
+
   addProduct: (product: Omit<Product, "id">) => void;
   updateProduct: (product: Product) => void;
   deleteProduct: (id: string) => void;
   toggleProductAvailability: (id: string) => void;
+
   addIngredient: (ingredient: Omit<Ingredient, "id">) => void;
   updateIngredient: (ingredient: Ingredient) => void;
   deleteIngredient: (id: string) => void;
   updateStock: (id: string, newStock: number) => void;
+
+  addToTable: (tableId: string, product: Product) => void;
+  removeFromTable: (tableId: string, productId: string) => void;
+  updateTableItemQty: (tableId: string, productId: string, qty: number) => void;
+  saveTableBill: (tableId: string) => void;
+  checkoutTable: (tableId: string) => void;
+  clearTable: (tableId: string) => void;
+
+  updateBankConfig: (config: BankConfig) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -93,29 +139,39 @@ const SAMPLE_INGREDIENTS: Ingredient[] = [
 const KEY_PRODUCTS = "@coffee_products";
 const KEY_INGREDIENTS = "@coffee_ingredients";
 const KEY_ORDERS = "@coffee_orders";
+const KEY_TABLES = "@coffee_tables";
+const KEY_BANK = "@coffee_bank";
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [tables, setTables] = useState<Table[]>([]);
+  const [bankConfig, setBankConfig] = useState<BankConfig>(DEFAULT_BANK);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
-        const [pJson, iJson, oJson] = await Promise.all([
+        const [pJ, iJ, oJ, tJ, bJ] = await Promise.all([
           AsyncStorage.getItem(KEY_PRODUCTS),
           AsyncStorage.getItem(KEY_INGREDIENTS),
           AsyncStorage.getItem(KEY_ORDERS),
+          AsyncStorage.getItem(KEY_TABLES),
+          AsyncStorage.getItem(KEY_BANK),
         ]);
-        setProducts(pJson ? JSON.parse(pJson) : SAMPLE_PRODUCTS);
-        setIngredients(iJson ? JSON.parse(iJson) : SAMPLE_INGREDIENTS);
-        setOrders(oJson ? JSON.parse(oJson) : []);
+        setProducts(pJ ? JSON.parse(pJ) : SAMPLE_PRODUCTS);
+        setIngredients(iJ ? JSON.parse(iJ) : SAMPLE_INGREDIENTS);
+        setOrders(oJ ? JSON.parse(oJ) : []);
+        setTables(tJ ? JSON.parse(tJ) : INITIAL_TABLES);
+        setBankConfig(bJ ? JSON.parse(bJ) : DEFAULT_BANK);
       } catch {
         setProducts(SAMPLE_PRODUCTS);
         setIngredients(SAMPLE_INGREDIENTS);
         setOrders([]);
+        setTables(INITIAL_TABLES);
+        setBankConfig(DEFAULT_BANK);
       }
       setLoaded(true);
     })();
@@ -133,45 +189,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setOrders(data);
     await AsyncStorage.setItem(KEY_ORDERS, JSON.stringify(data));
   }
+  async function saveTables(data: Table[]) {
+    setTables(data);
+    await AsyncStorage.setItem(KEY_TABLES, JSON.stringify(data));
+  }
 
   const cartTotal = cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
   const cartItemCount = cart.reduce((s, i) => s + i.quantity, 0);
 
   function addToCart(product: Product) {
     setCart((prev) => {
-      const existing = prev.find((i) => i.product.id === product.id);
-      if (existing) {
-        return prev.map((i) =>
-          i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i
-        );
-      }
+      const ex = prev.find((i) => i.product.id === product.id);
+      if (ex) return prev.map((i) => i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
       return [...prev, { product, quantity: 1 }];
     });
   }
-
   function removeFromCart(productId: string) {
-    setCart((prev) => prev.filter((i) => i.product.id !== productId));
+    setCart((p) => p.filter((i) => i.product.id !== productId));
   }
-
   function updateCartQuantity(productId: string, quantity: number) {
     if (quantity <= 0) { removeFromCart(productId); return; }
-    setCart((prev) =>
-      prev.map((i) => (i.product.id === productId ? { ...i, quantity } : i))
-    );
+    setCart((p) => p.map((i) => i.product.id === productId ? { ...i, quantity } : i));
   }
-
   function clearCart() { setCart([]); }
-
   function checkout(): string {
     const id = genId();
     const order: Order = {
       id,
-      items: cart.map((i) => ({
-        productId: i.product.id,
-        productName: i.product.name,
-        quantity: i.quantity,
-        price: i.product.price,
-      })),
+      items: cart.map((i) => ({ productId: i.product.id, productName: i.product.name, quantity: i.quantity, price: i.product.price })),
       total: cartTotal,
       createdAt: new Date().toISOString(),
     };
@@ -184,42 +229,102 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     saveProducts([...products, { ...product, id: genId() }]);
   }
   function updateProduct(product: Product) {
-    saveProducts(products.map((p) => (p.id === product.id ? product : p)));
+    saveProducts(products.map((p) => p.id === product.id ? product : p));
   }
   function deleteProduct(id: string) {
     saveProducts(products.filter((p) => p.id !== id));
   }
   function toggleProductAvailability(id: string) {
-    saveProducts(products.map((p) => (p.id === id ? { ...p, available: !p.available } : p)));
+    saveProducts(products.map((p) => p.id === id ? { ...p, available: !p.available } : p));
   }
 
   function addIngredient(ingredient: Omit<Ingredient, "id">) {
     saveIngredients([...ingredients, { ...ingredient, id: genId() }]);
   }
   function updateIngredient(ingredient: Ingredient) {
-    saveIngredients(ingredients.map((i) => (i.id === ingredient.id ? ingredient : i)));
+    saveIngredients(ingredients.map((i) => i.id === ingredient.id ? ingredient : i));
   }
   function deleteIngredient(id: string) {
     saveIngredients(ingredients.filter((i) => i.id !== id));
   }
   function updateStock(id: string, newStock: number) {
-    saveIngredients(
-      ingredients.map((i) => (i.id === id ? { ...i, currentStock: newStock } : i))
+    saveIngredients(ingredients.map((i) => i.id === id ? { ...i, currentStock: newStock } : i));
+  }
+
+  function addToTable(tableId: string, product: Product) {
+    const updated = tables.map((t) => {
+      if (t.id !== tableId) return t;
+      const ex = t.items.find((i) => i.product.id === product.id);
+      const newItems = ex
+        ? t.items.map((i) => i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i)
+        : [...t.items, { product, quantity: 1 }];
+      return { ...t, items: newItems, status: t.status === "empty" ? ("open" as TableStatus) : t.status };
+    });
+    saveTables(updated);
+  }
+  function removeFromTable(tableId: string, productId: string) {
+    const updated = tables.map((t) => {
+      if (t.id !== tableId) return t;
+      const newItems = t.items.filter((i) => i.product.id !== productId);
+      return { ...t, items: newItems, status: newItems.length === 0 ? ("empty" as TableStatus) : t.status };
+    });
+    saveTables(updated);
+  }
+  function updateTableItemQty(tableId: string, productId: string, qty: number) {
+    if (qty <= 0) { removeFromTable(tableId, productId); return; }
+    const updated = tables.map((t) => {
+      if (t.id !== tableId) return t;
+      return { ...t, items: t.items.map((i) => i.product.id === productId ? { ...i, quantity: qty } : i) };
+    });
+    saveTables(updated);
+  }
+  function saveTableBill(tableId: string) {
+    const updated = tables.map((t) =>
+      t.id === tableId ? { ...t, status: "billed" as TableStatus, savedAt: new Date().toISOString() } : t
     );
+    saveTables(updated);
+  }
+  function checkoutTable(tableId: string) {
+    const table = tables.find((t) => t.id === tableId);
+    if (!table || table.items.length === 0) return;
+    const total = table.items.reduce((s, i) => s + i.product.price * i.quantity, 0);
+    const order: Order = {
+      id: genId(),
+      items: table.items.map((i) => ({ productId: i.product.id, productName: i.product.name, quantity: i.quantity, price: i.product.price })),
+      total,
+      createdAt: new Date().toISOString(),
+      tableId,
+    };
+    saveOrders([order, ...orders]);
+    const updated = tables.map((t) =>
+      t.id === tableId ? { ...t, status: "empty" as TableStatus, items: [], savedAt: undefined } : t
+    );
+    saveTables(updated);
+  }
+  function clearTable(tableId: string) {
+    const updated = tables.map((t) =>
+      t.id === tableId ? { ...t, status: "empty" as TableStatus, items: [], savedAt: undefined } : t
+    );
+    saveTables(updated);
+  }
+
+  function updateBankConfig(config: BankConfig) {
+    setBankConfig(config);
+    AsyncStorage.setItem(KEY_BANK, JSON.stringify(config));
   }
 
   if (!loaded) return null;
 
   return (
-    <AppContext.Provider
-      value={{
-        products, ingredients, orders, cart,
-        cartTotal, cartItemCount,
-        addToCart, removeFromCart, updateCartQuantity, clearCart, checkout,
-        addProduct, updateProduct, deleteProduct, toggleProductAvailability,
-        addIngredient, updateIngredient, deleteIngredient, updateStock,
-      }}
-    >
+    <AppContext.Provider value={{
+      products, ingredients, orders, cart, cartTotal, cartItemCount,
+      tables, bankConfig,
+      addToCart, removeFromCart, updateCartQuantity, clearCart, checkout,
+      addProduct, updateProduct, deleteProduct, toggleProductAvailability,
+      addIngredient, updateIngredient, deleteIngredient, updateStock,
+      addToTable, removeFromTable, updateTableItemQty, saveTableBill, checkoutTable, clearTable,
+      updateBankConfig,
+    }}>
       {children}
     </AppContext.Provider>
   );
