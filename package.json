@@ -2,14 +2,24 @@
   "name": "workspace",
   "version": "0.0.0",
   "license": "MIT",
-  "scripts": {
-    "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
-    "build": "pnpm run typecheck && pnpm -r --if-present run build",
-    "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
-  },
   "private": true,
+  "scripts": {
+    "dev:web": "pnpm --filter ./artifacts/mockup-sandbox dev",
+    "dev:api": "pnpm --filter ./artifacts/api-server dev",
+    "dev:mobile": "pnpm --filter ./artifacts/coffee-shop dev",
+
+    "dev": "pnpm dev:web",
+
+    "build:web": "pnpm --filter ./artifacts/mockup-sandbox build",
+    "build:api": "pnpm --filter ./artifacts/api-server build",
+    "build:mobile": "pnpm --filter ./artifacts/coffee-shop build",
+
+    "build": "pnpm run build:api && pnpm run build:web",
+
+    "typecheck": "pnpm -r run typecheck"
+  },
   "devDependencies": {
+    "cross-env": "^10.1.0",
     "prettier": "^3.8.3",
     "typescript": "~5.9.3"
   }

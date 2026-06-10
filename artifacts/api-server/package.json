@@ -4,10 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
+    "dev": "node ./build.mjs && node --watch ./dist/index.mjs",
+
     "build": "node ./build.mjs",
+
     "start": "node --enable-source-maps ./dist/index.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+
+    "postinstall": "node ./build.mjs"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",

@@ -1,3 +1,4 @@
+
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
@@ -55,23 +56,15 @@ function stripProtocol(domain) {
 }
 
 function getDeploymentDomain() {
-  if (process.env.REPLIT_INTERNAL_APP_DOMAIN) {
-    return stripProtocol(process.env.REPLIT_INTERNAL_APP_DOMAIN);
-  }
+  const domain =
+    process.env.EXPO_PUBLIC_DOMAIN ||
+    process.env.REPLIT_INTERNAL_APP_DOMAIN ||
+    process.env.REPLIT_DEV_DOMAIN ||
+    "localhost";
 
-  if (process.env.REPLIT_DEV_DOMAIN) {
-    return stripProtocol(process.env.REPLIT_DEV_DOMAIN);
-  }
-
-  if (process.env.EXPO_PUBLIC_DOMAIN) {
-    return stripProtocol(process.env.EXPO_PUBLIC_DOMAIN);
-  }
-
-  console.error(
-    "ERROR: No deployment domain found. Set REPLIT_INTERNAL_APP_DOMAIN, REPLIT_DEV_DOMAIN, or EXPO_PUBLIC_DOMAIN",
-  );
-  process.exit(1);
+  return stripProtocol(domain);
 }
+  
 
 function prepareDirectories(timestamp) {
   console.log("Preparing build directories...");
@@ -147,22 +140,16 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
   }
 
   metroProcess = spawn(
-    "pnpm",
-    [
-      "exec",
-      "expo",
-      "start",
-      "--no-dev",
-      "--minify",
-      "--localhost",
-    ],
-    {
-      stdio: ["ignore", "pipe", "pipe"],
-      detached: false,
-      cwd: projectRoot,
-      env,
-    },
-  );
+  "pnpm.cmd",
+  ["exec", "expo", "start", "--no-dev", "--minify", "--localhost"],
+  {
+    stdio: ["ignore", "pipe", "pipe"],
+    detached: false,
+    cwd: projectRoot,
+    env,
+    shell: true,
+  }
+);
 
   if (metroProcess.stdout) {
     metroProcess.stdout.on("data", (data) => {
